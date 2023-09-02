@@ -17,7 +17,7 @@ function createWindow () {
   mainWindow.setMenu(null)
 
   // 加载 index.html
-  mainWindow.loadURL('http://localhost:3000') // 此处跟electron官网路径不同，需要注意
+  mainWindow.loadURL(process.env.NODE_ENV === 'development'?'http://localhost:3000':`file://${path.join(__dirname,'../dist/index.html')}`) // 此处跟electron官网路径不同，需要注意
 
   // 打开开发工具
   mainWindow.webContents.openDevTools()
