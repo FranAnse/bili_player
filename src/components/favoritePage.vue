@@ -3,9 +3,9 @@ import { onMounted } from 'vue';
 
 let favList = []
 
-function readSinglePage(web){
+function readSinglePage(web) {
   setTimeout(() => {
-      web.executeJavaScript(`
+    web.executeJavaScript(`
         var title = document.querySelectorAll('.fav-video-list .title');
         var info = []
         title.forEach((item)=>{
@@ -15,26 +15,48 @@ function readSinglePage(web){
           })
         })
         info
-      `).then((result)=>{
-        favList.push(...result)
-        web.executeJavaScript(`
+      `).then((result) => {
+      favList.push(...result)
+      web.executeJavaScript(`
         var a = document.querySelector('.be-pager-next').click()
-      `)
-
-        if(result.length===20){
-          readSinglePage(web)
+        var a = document.querySelector('.be-pager-item-active')
+        var b = document.querySelector('.be-pager-total')
+        console.log(a.innerHTML.replace(/[^0-9]/ig,""))
+        if(b.innerHTML.replace(/[^0-9]/ig,"") === a.innerHTML.replace(/[^0-9]/ig,"")){
+          false
         }else{
-          console.log(favList)
+          true
+        }
+      `).then((hasNext) => {
+        if (hasNext) {
+          readSinglePage(web)
+        } else {
+          downloadAsTXT(JSON.stringify(favList))
         }
       })
-    }, 2000);
+    })
+  }, 2000);
 }
 
-onMounted(()=>{
+function downloadAsTXT(text) {
+
+  var element = document.createElement('a');
+  element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+  element.setAttribute('download', 'favoriteList.txt');
+
+  element.style.display = 'none';
+  document.body.appendChild(element);
+
+  element.click();
+
+  document.body.removeChild(element);
+}
+
+onMounted(() => {
 
   let web = document.getElementsByClassName('webPageContainer')[0]
-  web.addEventListener('did-stop-loading',readSinglePage(web))
-  web.addEventListener('did-stop-loading',()=>{
+  web.addEventListener('did-stop-loading', readSinglePage(web))
+  web.addEventListener('did-stop-loading', () => {
     web.openDevTools()
   })
 })
@@ -42,20 +64,20 @@ onMounted(()=>{
 </script>
 
 <template>
-    <div class="biliContainer">
-      <webView class="webPageContainer" src="https://space.bilibili.com/9358935/favlist"></webView>
-    </div>
+  <div class="biliContainer">
+    <webView class="webPageContainer" src="https://space.bilibili.com/9358935/favlist"></webView>
+  </div>
 </template>
 
 <style scoped>
-.biliContainer{
+.biliContainer {
   height: 100%;
   width: 100%;
   overflow: hidden;
 
 }
 
-.webPageContainer{
+.webPageContainer {
   width: 100%;
   height: 100%;
 }
