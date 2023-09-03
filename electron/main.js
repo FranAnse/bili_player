@@ -1,5 +1,6 @@
 // main.js
-
+const ElectronStore = require('electron-store')
+ElectronStore.initRenderer()
 // 控制应用生命周期和创建原生浏览器窗口的模组
 const { app, BrowserWindow } = require('electron')
 const path = require('path')
@@ -7,11 +8,14 @@ const path = require('path')
 function createWindow () {
   // 创建浏览器窗口
   const mainWindow = new BrowserWindow({
-    width: 1600,
-    height: 900,
+    width: 1500,
+    height: 1000,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      webviewTag:true
+      webviewTag:true,
+      nodeIntegration: true,
+      enableRemoteModule: true,
+      contextIsolation: false
     }
   })
 

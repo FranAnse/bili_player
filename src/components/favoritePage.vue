@@ -1,21 +1,43 @@
 <script setup>
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, onBeforeUnmount, watch } from 'vue';
 import { useVideosStore } from '../stores/videos';
 import { ElMessageBox } from 'element-plus'
+
+const Store = require('electron-store');
+
+const store = new Store()
 
 const videosList = useVideosStore()
 
 const isLoading = ref(false)
 
+const currentUrl = ref('')
+
+const currentUrlInput = ref('')
+
+currentUrl.value = store.get('spaceUrl')
+
+watch(currentUrl,(value)=>{
+  currentUrlInput.value = value
+})
+
+currentUrlInput.value = currentUrl.value
+
 let favList = []
 
+let web
+
+onBeforeUnmount(() => {
+  if (web) {
+    web.removeEventListener('did-stop-loading', readSinglePage)
+  }
+})
+
 function readList() {
+  changeUrl()
   isLoading.value = true
-  let web = document.getElementsByClassName('webPageContainer')[0]
+  web = document.getElementsByClassName('webPageContainer')[0]
   web.addEventListener('did-stop-loading', readSinglePage(web))
-  web.addEventListener('did-stop-loading', () => {
-    web.openDevTools()
-  })
 }
 
 function readSinglePage(web) {
@@ -49,16 +71,20 @@ function readSinglePage(web) {
           readSinglePage(web)
         } else {
           videosList.videosList = favList
-          sessionStorage.setItem('favList', JSON.stringify(favList))
+          store.set('favList', JSON.stringify(favList))
           ElMessageBox.alert('收藏夹已导出到列表', '已完成', {
             confirmButtonText: 'OK',
           })
           isLoading.value = false
           // downloadAsTXT(JSON.stringify(favList))
         }
+      }).catch((e) => {
+        isLoading.value = false
+        ElMessageBox.alert('发生错误，请检查当前地址是否为收藏夹地址', '错误')
       })
     })
   }, 2000);
+
 }
 
 function downloadAsTXT(text) {
@@ -84,13 +110,24 @@ onMounted(() => {
   // })
 })
 
+function changeUrl() {
+  if (!currentUrlInput.value.startsWith('http')) {
+    ElMessageBox.alert('请输入http开头的完整链接', '错误')
+    throw new Error()
+  }
+  store.set('spaceUrl', currentUrlInput.value);
+  currentUrl.value = currentUrlInput.value
+}
+
 </script>
 
 <template>
   <div class="biliContainer">
     <div class="mask" v-if="isLoading">读取中</div>
-    <webView class="webPageContainer" src="https://space.bilibili.com/3284588"></webView>
+    <webView class="webPageContainer" :src="currentUrl"></webView>
     <div class="headLine">
+      <el-input class="urlInput" v-model="currentUrlInput" placeholder="输入你的b站空间地址" size="default"></el-input>
+
       <el-button class="btn" type="primary" size="default" @click="readList">读取收藏夹</el-button>
     </div>
 
@@ -139,5 +176,10 @@ onMounted(() => {
   justify-content: center;
   font-size: 20px;
   font-weight: bolder;
+}
+
+.urlInput {
+  margin-left: 10px;
+  width: calc(100% - 130px);
 }
 </style>
