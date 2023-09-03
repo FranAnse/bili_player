@@ -3,16 +3,26 @@ import { onMounted } from 'vue';
 
 let favList = []
 
+function readList() {
+  let web = document.getElementsByClassName('webPageContainer')[0]
+  web.addEventListener('did-stop-loading', readSinglePage(web))
+  web.addEventListener('did-stop-loading', () => {
+    web.openDevTools()
+  })
+}
+
 function readSinglePage(web) {
   setTimeout(() => {
     web.executeJavaScript(`
         var title = document.querySelectorAll('.fav-video-list .title');
         var info = []
         title.forEach((item)=>{
-          info.push({
-            name:item.title,
-            url:item.href
-          })
+          if(item.title !== '已失效视频'){
+            info.push({
+              name:item.title,
+              url:item.href
+            })
+          }
         })
         info
       `).then((result) => {
@@ -54,11 +64,11 @@ function downloadAsTXT(text) {
 
 onMounted(() => {
 
-  let web = document.getElementsByClassName('webPageContainer')[0]
-  web.addEventListener('did-stop-loading', readSinglePage(web))
-  web.addEventListener('did-stop-loading', () => {
-    web.openDevTools()
-  })
+  // let web = document.getElementsByClassName('webPageContainer')[0]
+  // web.addEventListener('did-stop-loading', readSinglePage(web))
+  // web.addEventListener('did-stop-loading', () => {
+  //   web.openDevTools()
+  // })
 })
 
 </script>
@@ -66,19 +76,39 @@ onMounted(() => {
 <template>
   <div class="biliContainer">
     <webView class="webPageContainer" src="https://space.bilibili.com/9358935/favlist"></webView>
+    <div class="headLine">
+      <el-button class="btn" type="primary" size="default" @click="readList">读取收藏夹</el-button>
+
+    </div>
   </div>
 </template>
 
 <style scoped>
 .biliContainer {
   height: 100%;
-  width: 100%;
+  width: calc(100% - 65px);
+  left: 65px;
+  position: relative;
   overflow: hidden;
 
 }
 
+.headLine {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: 50px;
+  border-top: 1px solid whitesmoke;
+  display: flex;
+  align-items: center;
+}
+
 .webPageContainer {
   width: 100%;
-  height: 100%;
+  height: calc(100% - 50px);
+}
+
+.btn {
+  margin: 10px;
 }
 </style>
