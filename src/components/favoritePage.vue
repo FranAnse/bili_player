@@ -1,9 +1,16 @@
 <script setup>
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
+import { useVideosStore } from '../stores/videos';
+import { ElMessageBox } from 'element-plus'
+
+const videosList = useVideosStore()
+
+const isLoading = ref(false)
 
 let favList = []
 
 function readList() {
+  isLoading.value = true
   let web = document.getElementsByClassName('webPageContainer')[0]
   web.addEventListener('did-stop-loading', readSinglePage(web))
   web.addEventListener('did-stop-loading', () => {
@@ -41,7 +48,13 @@ function readSinglePage(web) {
         if (hasNext) {
           readSinglePage(web)
         } else {
-          downloadAsTXT(JSON.stringify(favList))
+          videosList.videosList = favList
+          sessionStorage.setItem('favList', JSON.stringify(favList))
+          ElMessageBox.alert('收藏夹已导出到列表', '已完成', {
+            confirmButtonText: 'OK',
+          })
+          isLoading.value = false
+          // downloadAsTXT(JSON.stringify(favList))
         }
       })
     })
@@ -75,11 +88,12 @@ onMounted(() => {
 
 <template>
   <div class="biliContainer">
-    <webView class="webPageContainer" src="https://space.bilibili.com/9358935/favlist"></webView>
+    <div class="mask" v-if="isLoading">读取中</div>
+    <webView class="webPageContainer" src="https://space.bilibili.com/3284588"></webView>
     <div class="headLine">
       <el-button class="btn" type="primary" size="default" @click="readList">读取收藏夹</el-button>
-
     </div>
+
   </div>
 </template>
 
@@ -109,6 +123,21 @@ onMounted(() => {
 }
 
 .btn {
-  margin: 10px;
+  position: absolute;
+  right: 10px;
+}
+
+.mask {
+  position: fixed;
+  backdrop-filter: blur(5px);
+  width: 100%;
+  height: calc(100% - 50px);
+  background-color: transparent;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: bolder;
 }
 </style>

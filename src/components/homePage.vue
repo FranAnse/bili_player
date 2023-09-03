@@ -1,9 +1,13 @@
 <script setup>
+import img from '../assets/image/Q20230903100504.png';
+import {ref} from 'vue';
+
+const cover = ref(img)
 </script>
 
 <template>
     <div class="biliContainer">
-        <el-image class="imageContainer" src="\public\image\Q20230903100504.png" fit="cover" :lazy="true">
+        <el-image class="imageContainer" :src="cover" fit="cover" :lazy="true">
         </el-image>
         <div class="mask">
           <div class="playBtnContainer">
