@@ -2,7 +2,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 
 export const useVideosStore = defineStore('videos', () => {
-  const videosList = ref([])
+  const videosPlayStatus = ref('')
 
-  return { videosList }
+  return { videosPlayStatus }
 })

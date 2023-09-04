@@ -6,12 +6,33 @@ import favoritePage from '../components/favoritePage.vue'
 import homePage from '../components/homePage.vue'
 import playerPage from '../components/playerPage.vue';
 
+const player = ref(null)
+
 const currentPage = ref('home')
 
 const playList = ref()
 
+const oncePlay = ref(false)
 
 const isMenuExpand = ref(true)
+
+const currentTitle = ref('')
+
+function songChanged(song){
+  currentTitle.value = song
+}
+
+function changePlayStatus(status){
+  if(status){
+    if(!oncePlay.value){
+      oncePlay.value = true
+    }else{
+      player.value.switchPlayStatus()
+    }
+  }else{
+    player.value.switchPlayStatus()
+  }
+}
 </script>
 
 <template>
@@ -19,12 +40,12 @@ const isMenuExpand = ref(true)
 
     <div class="contentContainer">
 
-      <el-menu :collapse="!isMenuExpand" active-text-color="#66CCFF" collapse-transition class="menu" default-active="0">
+      <el-menu :collapse="!isMenuExpand" active-text-color="#66CCFF" collapse-transition class="menu" :class="currentPage === 'home'?'glassEffect':''" default-active="0">
         <el-menu-item index="0" @click="currentPage ='home';isMenuExpand = true">
           <el-icon><House/></el-icon>
           <template #title>首页</template>
         </el-menu-item>
-        <el-menu-item index="1" @click="currentPage ='player';isMenuExpand = false">
+        <el-menu-item index="1" @click="currentPage ='player';isMenuExpand = false;oncePlay=true">
           <el-icon><Headset/></el-icon>
           <template #title>播放器</template>
         </el-menu-item>
@@ -38,9 +59,9 @@ const isMenuExpand = ref(true)
         </el-icon>
       </el-menu>
       <div class="pageContainer">
-        <homePage v-if="currentPage === 'home'"></homePage>
-        <playerPage v-if="currentPage === 'player'"></playerPage>
-        <favoritePage v-if="currentPage === 'favorite'"></favoritePage>
+        <homePage @change-play-status="changePlayStatus" :current-play-name="currentTitle" style="position: relative;z-index: 10;" v-if="currentPage === 'home'"></homePage>
+        <favoritePage style="position: relative;z-index: 10;" v-if="currentPage === 'favorite'"></favoritePage>
+        <playerPage ref="player" @song-change="songChanged" style="position: relative;z-index: 1;" v-if="currentPage === 'player'||oncePlay"></playerPage>
         
       </div>
     </div>
@@ -60,13 +81,14 @@ const isMenuExpand = ref(true)
   height: 100%;
   display: flex;
 }
-
+.glassEffect{
+  backdrop-filter: blur(10px);
+  background-color: #66ccff11;
+}
 .menu {
   position: fixed;
-  backdrop-filter: blur(10px);
   height: 100%;
   z-index: 100;
-  background-color: #66ccff11;
 }
 
 .menu:not(.el-menu--collapse){

@@ -22,11 +22,11 @@ function createWindow () {
   mainWindow.setMenu(null)
 
   // 加载 index.html
-  mainWindow.loadURL(process.env.NODE_ENV === 'development'?'http://localhost:3000':`file://${path.join(__dirname,'../dist/index.html')}`) // 此处跟electron官网路径不同，需要注意
-  // mainWindow.loadURL('http://localhost:3000')
+  // mainWindow.loadURL(process.env.NODE_ENV === 'development'?'http://localhost:3000':`file://${path.join(__dirname,'../dist/index.html')}`) // 此处跟electron官网路径不同，需要注意
+  mainWindow.loadURL('http://localhost:3000')
 
   // 打开开发工具
-  // mainWindow.webContents.openDevTools()
+  mainWindow.webContents.openDevTools()
 }
 
 // 这段程序将会在 Electron 结束初始化

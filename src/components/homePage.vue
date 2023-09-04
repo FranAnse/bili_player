@@ -1,8 +1,31 @@
 <script setup>
 import img from '../assets/image/Q20230903100504.png';
-import {ref} from 'vue';
+import { ref, onMounted } from 'vue';
+
+import { useVideosStore } from '../stores/videos'
 
 const cover = ref(img)
+
+const props = defineProps(['currentPlayName'])
+
+const playStatus = ref(false)
+
+const videosStore = useVideosStore()
+
+onMounted(()=>{
+  if(videosStore.videosPlayStatus === ''){
+    playStatus.value = false
+  }else{
+    playStatus.value = videosStore.videosPlayStatus === '1' ? true : false
+  }
+})
+
+const emits = defineEmits(['changePlayStatus'])
+
+function changePlayStatus(){
+  playStatus.value = !playStatus.value
+  emits('changePlayStatus',playStatus.value)
+}
 </script>
 
 <template>
@@ -11,7 +34,8 @@ const cover = ref(img)
         </el-image>
         <div class="mask">
           <div class="playBtnContainer">
-            <el-icon size="30px"><VideoPause /></el-icon>
+            <div class="currentPlayName">{{ props.currentPlayName }}</div>
+            <el-icon style="cursor: pointer;" @click="changePlayStatus" size="30px"><VideoPause v-if="playStatus"/><VideoPlay v-if="!playStatus"/></el-icon>
           </div>
         </div>
       
@@ -51,12 +75,19 @@ const cover = ref(img)
 }
 
 .playBtnContainer{
-  width: 100px;
+  width: auto;
   height: 70px;
   position: absolute;
-  right: 0%;
+  right: 30px;
   bottom: 0%;
   color: aliceblue;
   text-shadow: 0 0 4px #32003C;
+
+  display: flex;
+  align-items: center
+}
+
+.currentPlayName{
+  margin-right: 20px;
 }
 </style>
