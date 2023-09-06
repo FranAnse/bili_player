@@ -47,12 +47,14 @@ function changePlayStatus(){
   height: 100%;
   width: 100%;
   overflow: hidden;
+  
 }
 
 .imageContainer{
   width: 100%;
   height: 100%;
   position: fixed;
+
 
   /* background: no-repeat center url('/public/image/Q20230903100504.png'); */
 }

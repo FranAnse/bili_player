@@ -2,22 +2,68 @@
 const ElectronStore = require('electron-store')
 ElectronStore.initRenderer()
 // 控制应用生命周期和创建原生浏览器窗口的模组
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, ipcMain, Tray, Menu } = require('electron')
 const path = require('path')
 
-function createWindow () {
+let tray = null
+
+function createWindow() {
   // 创建浏览器窗口
   const mainWindow = new BrowserWindow({
-    width: 1500,
+    width: 1380,
     height: 1000,
+    frame: false,
+    icon: '/src/assets/hydro.ico',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      webviewTag:true,
+      webviewTag: true,
       nodeIntegration: true,
       enableRemoteModule: true,
-      contextIsolation: false
+      contextIsolation: false,
+
     }
   })
+
+
+  tray = new Tray(path.join(__dirname, '../src/assets/hydro.ico'))
+
+  // 菜单模板
+  let menu = [
+    {
+      label: '显示主窗口',
+      id: 'show-window',
+      enabled: !mainWindow.show,
+      click() {
+        mainWindow.show();
+      }
+    },
+    {
+      label: '退出',
+      role: 'quit'
+    }
+  ];
+
+  menu = Menu.buildFromTemplate(menu)
+  tray.setContextMenu(menu)
+
+  tray.setToolTip('别摸了')
+
+  ipcMain.on('window-close', () => {
+    mainWindow.close()
+  })
+  // 窗口最小化
+  ipcMain.on('window-minisize', (ev) => {
+    // 阻止最小化
+    ev.preventDefault();
+    // 隐藏窗口
+    mainWindow.hide();
+  })
+
+  // 托盘图标被双击
+  tray.on('double-click', () => {
+    // 显示窗口
+    mainWindow.show();
+  });
 
   mainWindow.setMenu(null)
 
@@ -27,7 +73,23 @@ function createWindow () {
 
   // 打开开发工具
   mainWindow.webContents.openDevTools()
+  // 窗口隐藏
+  mainWindow.on('hide', () => {
+    // 启用菜单的显示主窗口项
+    menu.getMenuItemById('show-window').enabled = true;
+    // 重新设置系统托盘菜单
+    tray.setContextMenu(menu);
+  });
+
+  // 窗口显示
+  mainWindow.on('show', () => {
+    // 禁用显示主窗口项
+    menu.getMenuItemById('show-window').enabled = false;
+    // 重新设置系统托盘菜单
+    tray.setContextMenu(menu);
+  });
 }
+
 
 // 这段程序将会在 Electron 结束初始化
 // 和创建浏览器窗口的时候调用

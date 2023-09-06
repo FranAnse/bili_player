@@ -87,6 +87,7 @@ onMounted(() => {
     height: 100%;
     width: calc(100% - 65px);
     position: relative;
+    top:45px;
     left: 65px;
     overflow: hidden;
 }

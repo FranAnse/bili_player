@@ -139,6 +139,7 @@ function changeUrl() {
   height: 100%;
   width: calc(100% - 65px);
   left: 65px;
+  top:45px;
   position: relative;
   overflow: hidden;
 

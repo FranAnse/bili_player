@@ -18,8 +18,18 @@ const isMenuExpand = ref(true)
 
 const currentTitle = ref('')
 
+let ipcRenderer = require('electron').ipcRenderer
+
+function closeWindow(){
+  ipcRenderer.send('window-close')
+}
+
 function songChanged(song){
   currentTitle.value = song
+}
+
+function miniSize(params) {
+  ipcRenderer.send('window-minisize')
 }
 
 function changePlayStatus(status){
@@ -37,7 +47,10 @@ function changePlayStatus(status){
 
 <template>
   <div class="mainContainer">
-
+    <div class="headLine" :class="currentPage === 'home'?'':'headInPage'">
+      <el-icon class="iconBtn" @click="closeWindow"><CloseBold /></el-icon>
+      <el-icon class="iconBtn" @click="miniSize"><Minus /></el-icon>
+    </div>
     <div class="contentContainer">
 
       <el-menu :collapse="!isMenuExpand" active-text-color="#66CCFF" collapse-transition class="menu" :class="currentPage === 'home'?'glassEffect':''" default-active="0">
@@ -69,6 +82,29 @@ function changePlayStatus(status){
 </template>
 
 <style scoped>
+.headLine{
+  position: fixed;
+  top: 0;
+  height: 45px;
+  width: 100%;
+
+  -webkit-app-region: drag;
+
+  display: flex;
+  flex-direction: row-reverse;
+
+  z-index: 100;
+}
+
+.headInPage{
+  border-bottom: 1px solid rgb(220, 223, 230);
+}
+
+.iconBtn{
+  margin: 15px;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
 .mainContainer {
   width: 100%;
   height: 100%;
@@ -89,6 +125,8 @@ function changePlayStatus(status){
   position: fixed;
   height: 100%;
   z-index: 100;
+
+  -webkit-app-region: no-drag;
 }
 
 .menu:not(.el-menu--collapse){
