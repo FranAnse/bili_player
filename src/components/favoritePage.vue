@@ -136,7 +136,7 @@ function changeUrl() {
 
 <style scoped>
 .biliContainer {
-  height: 100%;
+  height: calc(100% - 50px);
   width: calc(100% - 65px);
   left: 65px;
   top:45px;
