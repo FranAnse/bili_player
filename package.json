@@ -28,7 +28,13 @@
     "directories": {
       "buildResources": "assets",
       "output": "dist_electron"
-    }
+    },
+    "extraResources":[
+      {
+        "from": "icons/",
+        "to":"icons/"
+      }
+    ]
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.1.0",
