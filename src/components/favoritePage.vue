@@ -43,13 +43,14 @@ function readList() {
 function readSinglePage(web) {
   setTimeout(() => {
     web.executeJavaScript(`
-        var title = document.querySelectorAll('.fav-video-list .title');
+        var title = document.querySelectorAll('.bili-video-card__title');
         var info = []
         title.forEach((item)=>{
           if(item.title !== '已失效视频'){
+            let innerItem = item.childNodes[0]
             info.push({
               name:item.title,
-              url:item.href
+              url:innerItem.href
             })
           }
         })
@@ -57,11 +58,10 @@ function readSinglePage(web) {
       `).then((result) => {
       favList.push(...result)
       web.executeJavaScript(`
-        var a = document.querySelector('.be-pager-next').click()
-        var a = document.querySelector('.be-pager-item-active')
-        var b = document.querySelector('.be-pager-total')
-        console.log(a.innerHTML.replace(/[^0-9]/ig,""))
-        if(b.innerHTML.replace(/[^0-9]/ig,"") === a.innerHTML.replace(/[^0-9]/ig,"")){
+        var a = document.getElementsByClassName('vui_pagenation--btn-side')[0].innerHTML==='上一页'?document.getElementsByClassName('vui_pagenation--btn-side')[1].click():document.getElementsByClassName('vui_pagenation--btn-side')[0].click()
+        var a = document.querySelector('.vui_button--active-blue')
+        var b = document.querySelector('.vui_pagenation-go__count')
+        if(b.innerHTML.split('/')[0].replace(/[^0-9]/ig,"") === a.innerHTML.replace(/[^0-9]/ig,"")){
           false
         }else{
           true
@@ -79,6 +79,8 @@ function readSinglePage(web) {
           // downloadAsTXT(JSON.stringify(favList))
         }
       }).catch((e) => {
+        throw new Error(e)
+debugger
         isLoading.value = false
         ElMessageBox.alert('发生错误，请检查当前地址是否为收藏夹地址', '错误')
       })
