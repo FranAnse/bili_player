@@ -20,11 +20,19 @@ onMounted(()=>{
   }
 })
 
-const emits = defineEmits(['changePlayStatus'])
+const emits = defineEmits(['changePlayStatus', 'playPreviousSong', 'playNextSong'])
 
 function changePlayStatus(){
   playStatus.value = !playStatus.value
   emits('changePlayStatus',playStatus.value)
+}
+
+function playPreviousSong() {
+  emits('playPreviousSong')
+}
+
+function playNextSong() {
+  emits('playNextSong')
 }
 </script>
 
@@ -35,7 +43,18 @@ function changePlayStatus(){
         <div class="mask">
           <div class="playBtnContainer">
             <div class="currentPlayName">{{ props.currentPlayName }}</div>
-            <el-icon style="cursor: pointer;" @click="changePlayStatus" size="30px"><VideoPause v-if="playStatus"/><VideoPlay v-if="!playStatus"/></el-icon>
+            <div class="controlGroup">
+              <el-icon class="controlIcon" @click="playPreviousSong" size="24px">
+                <DArrowLeft />
+              </el-icon>
+              <el-icon class="controlIcon playControlIcon" @click="changePlayStatus" size="30px">
+                <VideoPause v-if="playStatus"/>
+                <VideoPlay v-if="!playStatus"/>
+              </el-icon>
+              <el-icon class="controlIcon" @click="playNextSong" size="24px">
+                <DArrowRight />
+              </el-icon>
+            </div>
           </div>
         </div>
       
@@ -87,6 +106,20 @@ function changePlayStatus(){
 
   display: flex;
   align-items: center
+}
+
+.controlGroup {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.controlIcon {
+  cursor: pointer;
+}
+
+.playControlIcon {
+  display: flex;
 }
 
 .currentPlayName{

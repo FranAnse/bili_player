@@ -44,6 +44,22 @@ function changePlayStatus(status) {
     player.value.switchPlayStatus()
   }
 }
+
+function playPreviousSong() {
+  if (!player.value) {
+    return
+  }
+
+  player.value.playPreviousSong()
+}
+
+function playNextSong() {
+  if (!player.value) {
+    return
+  }
+
+  player.value.playNextSong()
+}
 </script>
 
 <template>
@@ -90,7 +106,11 @@ function changePlayStatus(status) {
         </el-icon>
       </el-menu>
       <div class="pageContainer">
-        <homePage @change-play-status="changePlayStatus" :current-play-name="currentTitle"
+        <homePage
+          @change-play-status="changePlayStatus"
+          @play-previous-song="playPreviousSong"
+          @play-next-song="playNextSong"
+          :current-play-name="currentTitle"
           style="position: relative;z-index: 10;" v-if="currentPage === 'home'"></homePage>
         <favoritePage style="position: relative;z-index: 10;" v-if="currentPage === 'favorite'"></favoritePage>
         <VideosManagement v-if="currentPage === 'playList'"></VideosManagement>

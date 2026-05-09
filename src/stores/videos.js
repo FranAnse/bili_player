@@ -170,6 +170,21 @@ export const useVideosStore = defineStore('videos', () => {
     return createPlayQueue()
   }
 
+  function moveToPreviousSong() {
+    ensurePlaylistLoaded()
+
+    if (!playQueue.value.length) {
+      return createPlayQueue()
+    }
+
+    if (currentQueueIndex.value <= 0) {
+      return null
+    }
+
+    currentQueueIndex.value -= 1
+    return syncCurrentSongFromQueue()
+  }
+
   function startQueueFromIndex(queueIndex) {
     ensurePlaylistLoaded()
 
@@ -379,6 +394,7 @@ export const useVideosStore = defineStore('videos', () => {
     ensureQueue,
     createPlayQueue,
     moveToNextSong,
+    moveToPreviousSong,
     startQueueFromIndex,
     setPlaylist,
     addSong,

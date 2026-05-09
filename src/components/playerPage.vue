@@ -11,13 +11,18 @@ const { playQueue, currentQueueIndex, currentSong } = storeToRefs(videosStore)
 
 const emit = defineEmits(['songChange'])
 
-defineExpose({ switchPlayStatus })
+defineExpose({
+  switchPlayStatus,
+  playPreviousSong,
+  playNextSong,
+})
 
 const webViewRef = ref(null)
 const currentUrl = ref('')
 
 let intervalId = null
 let isAdvancing = false
+let isManualSwitching = false
 
 function syncCurrentSong(song) {
   currentUrl.value = song?.url ?? ''
@@ -45,6 +50,125 @@ function switchPlayStatus() {
 
 function rebuildPlayQueue() {
   const nextSong = videosStore.createPlayQueue({ prioritizedSong: currentSong.value })
+  syncCurrentSong(nextSong)
+}
+
+function wait(duration) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, duration)
+  })
+}
+
+async function resetCurrentVideoBeforeSwitch() {
+  if (!webViewRef.value || !currentSong.value) {
+    return { ok: false, reason: 'no_webview' }
+  }
+
+  try {
+    return await webViewRef.value.executeJavaScript(`
+      (() => {
+        function pickMainVideo(root = document) {
+          const videos = Array.from(root.querySelectorAll('video'))
+
+          if (!videos.length) {
+            return null
+          }
+
+          return videos
+            .filter((video) => video.readyState >= 1)
+            .sort((left, right) => {
+              const leftArea = left.clientWidth * left.clientHeight
+              const rightArea = right.clientWidth * right.clientHeight
+              return rightArea - leftArea
+            })[0] ?? videos[0]
+        }
+
+        function triggerProgressReset(progressElement) {
+          const rect = progressElement.getBoundingClientRect()
+
+          if (!rect.width || !rect.height) {
+            return false
+          }
+
+          const clientX = rect.left + Math.min(4, Math.max(1, rect.width * 0.01))
+          const clientY = rect.top + (rect.height / 2)
+          const mouseEventOptions = {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            view: window,
+            clientX,
+            clientY,
+            buttons: 1,
+          }
+
+          if (typeof PointerEvent === 'function') {
+            progressElement.dispatchEvent(new PointerEvent('pointerdown', { ...mouseEventOptions, pointerId: 1, pointerType: 'mouse', isPrimary: true }))
+            progressElement.dispatchEvent(new PointerEvent('pointermove', { ...mouseEventOptions, pointerId: 1, pointerType: 'mouse', isPrimary: true }))
+            progressElement.dispatchEvent(new PointerEvent('pointerup', { ...mouseEventOptions, pointerId: 1, pointerType: 'mouse', isPrimary: true }))
+          }
+
+          progressElement.dispatchEvent(new MouseEvent('mousedown', mouseEventOptions))
+          progressElement.dispatchEvent(new MouseEvent('mousemove', mouseEventOptions))
+          progressElement.dispatchEvent(new MouseEvent('mouseup', mouseEventOptions))
+          progressElement.dispatchEvent(new MouseEvent('click', mouseEventOptions))
+
+          return true
+        }
+
+        const video = pickMainVideo()
+        const progressElement = document.querySelector('.bui-progress-wrap')
+          || document.querySelector('.bpx-player-progress-wrap')
+          || document.querySelector('.bpx-player-progress')
+
+        if (!video) {
+          return { ok: false, reason: 'video_not_found' }
+        }
+
+        const progressResetTriggered = progressElement ? triggerProgressReset(progressElement) : false
+
+        video.currentTime = 0
+        video.dispatchEvent(new Event('seeking', { bubbles: true }))
+        video.dispatchEvent(new Event('timeupdate', { bubbles: true }))
+        video.dispatchEvent(new Event('seeked', { bubbles: true }))
+
+        return {
+          ok: true,
+          progressResetTriggered,
+          currentTime: video.currentTime,
+        }
+      })()
+    `)
+  } catch (error) {
+    return { ok: false, reason: 'execute_failed' }
+  }
+}
+
+async function switchSongWithReset(moveHandler) {
+  if (isManualSwitching || isAdvancing) {
+    return
+  }
+
+  isManualSwitching = true
+
+  const resetResult = await resetCurrentVideoBeforeSwitch()
+
+  if (!resetResult.ok) {
+    isManualSwitching = false
+    ElMessage.warning('当前页面还没有找到可控制的视频，暂时不能切歌')
+    return
+  }
+
+  await wait(500)
+
+  const nextSong = moveHandler()
+
+  if (!nextSong) {
+    isManualSwitching = false
+    ElMessage.warning('没有可切换的歌曲了')
+    return
+  }
+
   syncCurrentSong(nextSong)
 }
 
@@ -80,7 +204,7 @@ function stopPolling() {
   }
 }
 
-function playNextSong() {
+function advanceToNextSong() {
   if (isAdvancing) {
     return
   }
@@ -95,7 +219,26 @@ function playNextSong() {
   }
 }
 
+function playPreviousSong() {
+  if (currentQueueIndex.value <= 0) {
+    ElMessage.warning('已经是第一首了')
+    return
+  }
+
+  return switchSongWithReset(() => videosStore.moveToPreviousSong())
+}
+
+function playNextSong() {
+  if (!playQueue.value.length) {
+    ElMessage.warning('当前没有可播放的歌单')
+    return
+  }
+
+  return switchSongWithReset(() => videosStore.moveToNextSong())
+}
+
 function handleDidStopLoading() {
+  isManualSwitching = false
   isAdvancing = false
   stopPolling()
 
@@ -120,7 +263,7 @@ function handleDidStopLoading() {
       videosStore.videosPlayStatus = playState.paused ? '0' : '1'
 
       if (playState.ended) {
-        playNextSong()
+        advanceToNextSong()
       }
     } catch (error) {
       videosStore.videosPlayStatus = '0'
