@@ -1,19 +1,271 @@
-// main.js
 const ElectronStore = require('electron-store')
 ElectronStore.initRenderer()
-// 控制应用生命周期和创建原生浏览器窗口的模组
+
 const { app, BrowserWindow, ipcMain, Tray, Menu, globalShortcut } = require('electron')
 const path = require('path')
 
-let tray = null
+const NORMAL_MIN_SIZE = [960, 680]
+const MINI_MIN_SIZE = [360, 1]
+const DEFAULT_NORMAL_BOUNDS = {
+  width: 1380,
+  height: 1000,
+}
+const MINI_PLAYER_BOUNDS = {
+  width: 430,
+  height: 260,
+}
+const MINI_PLAYLIST_BOUNDS = {
+  width: 430,
+  height: 560,
+}
+const CLOSE_PREPARE_TIMEOUT_MS = 2500
 
-let mainWindow
+let tray = null
+let mainWindow = null
+let normalWindowBounds = null
+let miniCollapsedBoundsBeforePlaylist = null
+let isMiniPlayerWindow = false
+let isMiniPlaylistExpanded = false
+let isApplyingWindowBounds = false
+let isCloseConfirmed = false
+let isPreparingToClose = false
+let closePrepareTimeout = null
+
+function getAppUrl() {
+  return process.env.NODE_ENV === 'development'
+    ? 'http://localhost:3000'
+    : `file://${path.join(__dirname, '../dist/index.html')}`
+}
+
+function clearClosePrepareTimeout() {
+  if (closePrepareTimeout) {
+    clearTimeout(closePrepareTimeout)
+    closePrepareTimeout = null
+  }
+}
+
+function applyWindowBounds(bounds) {
+  if (!mainWindow || !bounds) {
+    return
+  }
+
+  isApplyingWindowBounds = true
+  mainWindow.setBounds(bounds, true)
+
+  setTimeout(() => {
+    isApplyingWindowBounds = false
+  }, 80)
+}
+
+function restoreWindowBounds(bounds) {
+  if (!mainWindow || !bounds) {
+    return
+  }
+
+  const hasPosition = Number.isFinite(bounds.x) && Number.isFinite(bounds.y)
+  applyWindowBounds(bounds)
+
+  if (!hasPosition) {
+    mainWindow.center()
+  }
+}
+
+function getCollapsedMiniBounds(bounds) {
+  return {
+    x: bounds?.x,
+    y: bounds?.y,
+    width: bounds?.width ?? MINI_PLAYER_BOUNDS.width,
+    height: MINI_PLAYER_BOUNDS.height,
+  }
+}
+
+function getInitialMiniBounds(bounds) {
+  return {
+    x: bounds?.x,
+    y: bounds?.y,
+    width: MINI_PLAYER_BOUNDS.width,
+    height: MINI_PLAYER_BOUNDS.height,
+  }
+}
+
+function getExpandedMiniBounds(bounds) {
+  return {
+    x: bounds?.x,
+    y: bounds?.y,
+    width: bounds?.width ?? MINI_PLAYLIST_BOUNDS.width,
+    height: MINI_PLAYLIST_BOUNDS.height,
+  }
+}
+
+function updateStoredBounds() {
+  if (!mainWindow || isApplyingWindowBounds) {
+    return
+  }
+
+  const currentBounds = mainWindow.getBounds()
+
+  if (!isMiniPlayerWindow) {
+    normalWindowBounds = currentBounds
+  }
+}
+
+function updateMiniPlaylistLayout(isOpen) {
+  if (!mainWindow || !isMiniPlayerWindow || isOpen === isMiniPlaylistExpanded) {
+    return
+  }
+
+  const currentBounds = mainWindow.getBounds()
+
+  if (isOpen) {
+    miniCollapsedBoundsBeforePlaylist = { ...currentBounds }
+    const expandedBounds = getExpandedMiniBounds(currentBounds)
+    const heightDelta = expandedBounds.height - currentBounds.height
+
+    applyWindowBounds({
+      x: expandedBounds.x,
+      y: heightDelta > 0 ? Math.max(0, currentBounds.y - heightDelta) : currentBounds.y,
+      width: expandedBounds.width,
+      height: expandedBounds.height,
+    })
+  } else if (miniCollapsedBoundsBeforePlaylist) {
+    const collapsedBounds = getCollapsedMiniBounds(miniCollapsedBoundsBeforePlaylist)
+
+    applyWindowBounds(collapsedBounds)
+    miniCollapsedBoundsBeforePlaylist = null
+  }
+
+  isMiniPlaylistExpanded = isOpen
+}
+
+function setMiniPlayerMode(enabled) {
+  if (!mainWindow || enabled === isMiniPlayerWindow) {
+    return
+  }
+
+  if (enabled) {
+    normalWindowBounds = mainWindow.getBounds()
+
+    isMiniPlayerWindow = true
+    isMiniPlaylistExpanded = false
+    miniCollapsedBoundsBeforePlaylist = null
+
+    mainWindow.setAlwaysOnTop(true, 'screen-saver')
+    mainWindow.setMinimumSize(...MINI_MIN_SIZE)
+    restoreWindowBounds(getInitialMiniBounds(mainWindow.getBounds()))
+    return
+  }
+
+  isMiniPlayerWindow = false
+  isMiniPlaylistExpanded = false
+  miniCollapsedBoundsBeforePlaylist = null
+
+  mainWindow.setAlwaysOnTop(false)
+  mainWindow.setMinimumSize(...NORMAL_MIN_SIZE)
+  restoreWindowBounds(normalWindowBounds || DEFAULT_NORMAL_BOUNDS)
+}
+
+function forceCloseMainWindow() {
+  clearClosePrepareTimeout()
+  isPreparingToClose = false
+
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    app.quit()
+    return
+  }
+
+  isCloseConfirmed = true
+  mainWindow.close()
+}
+
+function requestWindowClosePreparation() {
+  if (!mainWindow || mainWindow.isDestroyed() || isPreparingToClose) {
+    return
+  }
+
+  isPreparingToClose = true
+
+  if (!mainWindow.webContents || mainWindow.webContents.isDestroyed()) {
+    forceCloseMainWindow()
+    return
+  }
+
+  clearClosePrepareTimeout()
+  closePrepareTimeout = setTimeout(() => {
+    forceCloseMainWindow()
+  }, CLOSE_PREPARE_TIMEOUT_MS)
+
+  mainWindow.webContents.send('app-before-close-request')
+}
+
+function buildTrayMenu() {
+  const menuTemplate = [
+    {
+      label: '显示主窗口',
+      id: 'show-window',
+      enabled: mainWindow ? !mainWindow.isVisible() : true,
+      click() {
+        if (mainWindow) {
+          mainWindow.show()
+        }
+      },
+    },
+    {
+      label: '退出',
+      click() {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.close()
+        } else {
+          app.quit()
+        }
+      },
+    },
+  ]
+
+  return Menu.buildFromTemplate(menuTemplate)
+}
+
+function refreshTrayMenu() {
+  if (!tray) {
+    return
+  }
+
+  tray.setContextMenu(buildTrayMenu())
+}
+
+function registerIpcHandlers() {
+  ipcMain.on('window-close', () => {
+    if (mainWindow) {
+      mainWindow.close()
+    }
+  })
+
+  ipcMain.on('window-close-confirmed', () => {
+    forceCloseMainWindow()
+  })
+
+  ipcMain.on('window-minisize', (event) => {
+    event.preventDefault()
+
+    if (mainWindow) {
+      mainWindow.hide()
+    }
+  })
+
+  ipcMain.on('window-toggle-mini-player', (event, enabled) => {
+    setMiniPlayerMode(Boolean(enabled))
+  })
+
+  ipcMain.on('window-set-mini-playlist-open', (event, isOpen) => {
+    updateMiniPlaylistLayout(Boolean(isOpen))
+  })
+}
 
 function createWindow() {
-  // 创建浏览器窗口
   mainWindow = new BrowserWindow({
-    width: 1380,
-    height: 1000,
+    width: DEFAULT_NORMAL_BOUNDS.width,
+    height: DEFAULT_NORMAL_BOUNDS.height,
+    minWidth: NORMAL_MIN_SIZE[0],
+    minHeight: NORMAL_MIN_SIZE[1],
     frame: false,
     icon: '/src/assets/hydro.ico',
     webPreferences: {
@@ -22,109 +274,84 @@ function createWindow() {
       nodeIntegration: true,
       enableRemoteModule: true,
       contextIsolation: false,
-
-    }
-  })
-
-
-  // tray = new Tray(path.join(__dirname, '../dist/hydro.ico'))
-
-  tray = new Tray(path.join(__dirname, 'icon/hydro.ico'))
-  // 菜单模板
-  let menu = [
-    {
-      label: '显示主窗口',
-      id: 'show-window',
-      enabled: !mainWindow.show,
-      click() {
-        mainWindow.show();
-      }
     },
-    {
-      label: '退出',
-      role: 'quit'
-    }
-  ];
-
-  menu = Menu.buildFromTemplate(menu)
-  tray.setContextMenu(menu)
-
-  tray.setToolTip('别摸了')
-
-  ipcMain.on('window-close', () => {
-    mainWindow.close()
-  })
-  // 窗口最小化
-  ipcMain.on('window-minisize', (ev) => {
-    // 阻止最小化
-    ev.preventDefault();
-    // 隐藏窗口
-    mainWindow.hide();
   })
 
-  // 托盘图标被双击
+  normalWindowBounds = mainWindow.getBounds()
+  tray = new Tray(path.join(__dirname, 'icon/hydro.ico'))
+  tray.setToolTip('BiliPlayer')
+  refreshTrayMenu()
+
   tray.on('double-click', () => {
-    // 显示窗口
-    mainWindow.show();
-  });
+    if (mainWindow) {
+      mainWindow.show()
+    }
+  })
 
   mainWindow.setMenu(null)
+  mainWindow.loadURL(getAppUrl())
 
-  // 加载 index.html
-  mainWindow.loadURL(process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : `file://${path.join(__dirname, '../dist/index.html')}`) // 此处跟electron官网路径不同，需要注意
-  // mainWindow.loadURL('http://localhost:3000')
-  // 打开开发工具
-  // mainWindow.webContents.openDevTools()
+  mainWindow.on('close', (event) => {
+    if (isCloseConfirmed) {
+      isCloseConfirmed = false
+      return
+    }
 
-
-  // 窗口隐藏
-  mainWindow.on('hide', () => {
-    // 启用菜单的显示主窗口项
-    menu.getMenuItemById('show-window').enabled = true;
-    // 重新设置系统托盘菜单
-    tray.setContextMenu(menu);
-  });
-
-  // 窗口显示
-  mainWindow.on('show', () => {
-    // 禁用显示主窗口项
-    menu.getMenuItemById('show-window').enabled = false;
-    // 重新设置系统托盘菜单
-    tray.setContextMenu(menu);
-  });
-}
-
-
-
-// 这段程序将会在 Electron 结束初始化
-// 和创建浏览器窗口的时候调用
-// 部分 API 在 ready 事件触发后才能使用。
-app.whenReady().then(() => {
-  createWindow()
-
-  app.on('activate', function () {
-    // 通常在 macOS 上，当点击 dock 中的应用程序图标时，如果没有其他
-    // 打开的窗口，那么程序会重新创建一个窗口。
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    event.preventDefault()
+    requestWindowClosePreparation()
   })
 
-  // 快捷键控制窗体显隐
-  globalShortcut.register('Alt+CommandOrControl+/', () => {
-    if (mainWindow.isVisible()) {
-      mainWindow.hide();
-    } else {
-      // 显示窗口
-      mainWindow.show();
+  mainWindow.on('closed', () => {
+    clearClosePrepareTimeout()
+    mainWindow = null
+  })
+
+  mainWindow.on('resize', () => {
+    updateStoredBounds()
+  })
+
+  mainWindow.on('move', () => {
+    updateStoredBounds()
+  })
+
+  mainWindow.on('hide', () => {
+    refreshTrayMenu()
+  })
+
+  mainWindow.on('show', () => {
+    refreshTrayMenu()
+  })
+}
+
+app.whenReady().then(() => {
+  registerIpcHandlers()
+  createWindow()
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow()
     }
   })
 
+  globalShortcut.register('Alt+CommandOrControl+/', () => {
+    if (!mainWindow) {
+      return
+    }
+
+    if (mainWindow.isVisible()) {
+      mainWindow.hide()
+    } else {
+      mainWindow.show()
+    }
+  })
 })
 
-// 除了 macOS 外，当所有窗口都被关闭的时候退出程序。 因此，通常对程序和它们在
-// 任务栏上的图标来说，应当保持活跃状态，直到用户使用 Cmd + Q 退出。
-app.on('window-all-closed', function () {
-  if (process.platform !== 'darwin') app.quit()
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
 })
 
-// 在这个文件中，你可以包含应用程序剩余的所有部分的代码，
-// 也可以拆分成几个文件，然后用 require 导入。
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
+})

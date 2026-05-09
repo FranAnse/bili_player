@@ -15,6 +15,7 @@ defineExpose({
   switchPlayStatus,
   playPreviousSong,
   playNextSong,
+  prepareBeforeClose,
 })
 
 const webViewRef = ref(null)
@@ -66,7 +67,7 @@ async function resetCurrentVideoBeforeSwitch() {
 
   try {
     return await webViewRef.value.executeJavaScript(`
-      (() => {
+      (async () => {
         function pickMainVideo(root = document) {
           const videos = Array.from(root.querySelectorAll('video'))
 
@@ -126,15 +127,60 @@ async function resetCurrentVideoBeforeSwitch() {
         }
 
         const progressResetTriggered = progressElement ? triggerProgressReset(progressElement) : false
+        const previousPaused = video.paused
+
+        video.pause()
+
+        if (typeof video.fastSeek === 'function') {
+          try {
+            video.fastSeek(0)
+          } catch (error) {}
+        }
 
         video.currentTime = 0
-        video.dispatchEvent(new Event('seeking', { bubbles: true }))
-        video.dispatchEvent(new Event('timeupdate', { bubbles: true }))
-        video.dispatchEvent(new Event('seeked', { bubbles: true }))
+        const seekResult = await new Promise((resolve) => {
+          let settled = false
+
+          function finish(reason) {
+            if (settled) {
+              return
+            }
+
+            settled = true
+            video.removeEventListener('seeked', handleSeeked)
+            video.removeEventListener('timeupdate', handleTimeUpdate)
+            window.clearTimeout(timeoutId)
+            resolve(reason)
+          }
+
+          function handleSeeked() {
+            finish('seeked')
+          }
+
+          function handleTimeUpdate() {
+            if (video.currentTime <= 0.2) {
+              finish('timeupdate')
+            }
+          }
+
+          const timeoutId = window.setTimeout(() => {
+            finish('timeout')
+          }, 600)
+
+          video.addEventListener('seeked', handleSeeked, { once: true })
+          video.addEventListener('timeupdate', handleTimeUpdate)
+          video.dispatchEvent(new Event('seeking', { bubbles: true }))
+          video.dispatchEvent(new Event('timeupdate', { bubbles: true }))
+        })
+
+        if (!previousPaused) {
+          video.pause()
+        }
 
         return {
           ok: true,
           progressResetTriggered,
+          seekResult,
           currentTime: video.currentTime,
         }
       })()
@@ -172,8 +218,16 @@ async function switchSongWithReset(moveHandler) {
   syncCurrentSong(nextSong)
 }
 
+async function prepareBeforeClose() {
+  const resetResult = await resetCurrentVideoBeforeSwitch()
+
+  if (resetResult.ok) {
+    await wait(500)
+  }
+}
+
 function canScheduleFromQueue(index) {
-  return index > currentQueueIndex.value
+  return index !== currentQueueIndex.value
 }
 
 function handleQueueItemClick(index) {
@@ -308,9 +362,12 @@ onBeforeUnmount(() => {
       <div class="playerSurface">
         <webview
           v-if="currentSong"
+          :key="currentUrl"
           ref="webViewRef"
           class="webPageContainer"
           :src="currentUrl"
+          @dom-ready="bindWebViewEvents"
+          @did-stop-loading="handleDidStopLoading"
         ></webview>
         <div v-else class="emptySurface">
           <el-empty description="暂无可播放视频"></el-empty>

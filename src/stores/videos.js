@@ -192,15 +192,34 @@ export const useVideosStore = defineStore('videos', () => {
       return { ok: false, reason: 'empty' }
     }
 
-    if (!Number.isInteger(queueIndex) || queueIndex <= currentQueueIndex.value || queueIndex >= playQueue.value.length) {
+    if (!Number.isInteger(queueIndex) || queueIndex < 0 || queueIndex >= playQueue.value.length) {
       return { ok: false, reason: 'invalid_index' }
     }
 
-    const prefix = playQueue.value.slice(0, currentQueueIndex.value + 1)
-    const selectedTail = playQueue.value.slice(queueIndex)
-    const skippedSongs = playQueue.value.slice(currentQueueIndex.value + 1, queueIndex)
+    if (queueIndex === currentQueueIndex.value) {
+      return { ok: false, reason: 'same_song' }
+    }
 
-    playQueue.value = [...prefix, ...selectedTail, ...skippedSongs]
+    const currentIndex = currentQueueIndex.value
+    const currentQueue = playQueue.value.slice()
+    const currentTrack = currentQueue[currentIndex]
+    const historyBeforeSelection = currentQueue.slice(0, Math.min(queueIndex, currentIndex))
+    const queueAfterCurrent = currentQueue.slice(currentIndex + 1)
+    let nextSongs = []
+
+    if (queueIndex > currentIndex) {
+      nextSongs = currentQueue
+        .slice(queueIndex)
+        .concat(currentQueue.slice(currentIndex + 1, queueIndex))
+    } else {
+      nextSongs = currentQueue
+        .slice(queueIndex, currentIndex)
+        .concat(queueAfterCurrent)
+        .concat(currentQueue.slice(0, queueIndex))
+    }
+
+    playQueue.value = [...historyBeforeSelection, currentTrack, ...nextSongs]
+    currentQueueIndex.value = historyBeforeSelection.length
     syncCurrentSongFromQueue()
 
     return { ok: true }
