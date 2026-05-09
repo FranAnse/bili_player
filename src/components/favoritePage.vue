@@ -7,7 +7,7 @@ const Store = require('electron-store');
 
 const store = new Store()
 
-const videosList = useVideosStore()
+const videosStore = useVideosStore()
 
 const isLoading = ref(false)
 
@@ -36,6 +36,7 @@ onBeforeUnmount(() => {
 function readList() {
   changeUrl()
   isLoading.value = true
+  favList = []
   web = document.getElementsByClassName('webPageContainer')[0]
   web.addEventListener('did-stop-loading', readSinglePage(web))
 }
@@ -70,8 +71,7 @@ function readSinglePage(web) {
         if (hasNext) {
           readSinglePage(web)
         } else {
-          videosList.videosList = favList
-          store.set('favList', JSON.stringify(favList))
+          videosStore.setPlaylist(favList)
           ElMessageBox.alert('收藏夹已导出到列表', '已完成', {
             confirmButtonText: 'OK',
           })
